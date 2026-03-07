@@ -1,3 +1,5 @@
+#![allow(clippy::async_yields_async)]
+
 pub mod commands;
 pub mod config;
 pub mod handlers;

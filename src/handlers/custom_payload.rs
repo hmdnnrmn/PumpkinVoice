@@ -1,7 +1,7 @@
 use pumpkin::plugin::player::player_custom_payload::PlayerCustomPayloadEvent;
 use pumpkin::plugin::{BoxFuture, EventHandler};
 use pumpkin::server::Server;
-use pumpkin_api_macros::with_runtime;
+
 use std::sync::Arc;
 use tracing::info;
 
@@ -16,7 +16,6 @@ pub struct CustomPayloadHandler {
     pub state_manager: Arc<StateManager>,
 }
 
-#[with_runtime(global)]
 impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
     fn handle_blocking<'a>(
         &'a self,

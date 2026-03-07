@@ -1,7 +1,7 @@
 use pumpkin::plugin::player::player_join::PlayerJoinEvent;
 use pumpkin::plugin::{BoxFuture, EventHandler};
 use pumpkin::server::Server;
-use pumpkin_api_macros::with_runtime;
+
 use std::sync::Arc;
 
 use crate::net::custom_payloads::{
@@ -13,7 +13,6 @@ pub struct JoinHandler {
     pub state_manager: Arc<StateManager>,
 }
 
-#[with_runtime(global)]
 impl EventHandler<PlayerJoinEvent> for JoinHandler {
     fn handle_blocking<'a>(
         &self,
