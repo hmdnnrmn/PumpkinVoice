@@ -5,31 +5,37 @@ use uuid::Uuid;
 use crate::state::group::Group;
 use crate::state::player::PlayerState;
 use crate::state::secret::Secret;
+use crate::util::rate_limiter::PacketRateLimiter;
 
 pub struct StateManager {
     states: RwLock<HashMap<Uuid, PlayerState>>,
     groups: RwLock<HashMap<Uuid, Group>>,
     categories: RwLock<HashMap<String, crate::net::VolumeCategory>>,
+    pub rate_limiter: PacketRateLimiter,
 }
 
 impl StateManager {
     #[must_use]
     pub fn new() -> Self {
+        let config = crate::config::CONFIG.read().unwrap();
         let mut cats = HashMap::new();
-        // Insert a demo category so the mod populates the UI
-        cats.insert(
-            "radio".to_string(),
-            crate::net::VolumeCategory {
-                id: "radio".to_string(),
-                name: "Radio Team".to_string(),
-                description: Some("Global broadcast".to_string()),
-            },
-        );
+        
+        for cat in &config.categories {
+            cats.insert(
+                cat.id.clone(),
+                crate::net::VolumeCategory {
+                    id: cat.id.clone(),
+                    name: cat.name.clone(),
+                    description: cat.description.clone(),
+                },
+            );
+        }
 
         Self {
             states: RwLock::new(HashMap::new()),
             groups: RwLock::new(HashMap::new()),
             categories: RwLock::new(cats),
+            rate_limiter: PacketRateLimiter::new(config.max_packets_per_second),
         }
     }
 

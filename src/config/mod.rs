@@ -5,6 +5,13 @@ use std::sync::RwLock;
 use tracing::{debug, warn};
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct CategoryConfig {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct VoicechatConfig {
     pub port: i32,
     pub bind_address: String,
@@ -22,6 +29,8 @@ pub struct VoicechatConfig {
     pub login_timeout: i32,
     pub broadcast_range: f64,
     pub allow_pings: bool,
+    pub max_packets_per_second: i32,
+    pub categories: Vec<CategoryConfig>,
 }
 
 impl Default for VoicechatConfig {
@@ -31,7 +40,7 @@ impl Default for VoicechatConfig {
             bind_address: String::new(),
             max_voice_distance: 48.0,
             whisper_distance: 24.0,
-            codec: "VOIP".to_string(), // VOIP, AUDIO, RESTRICTED_LOWDELAY
+            codec: "VOIP".to_string(),
             mtu_size: 1024,
             keep_alive: 1000,
             enable_groups: true,
@@ -43,6 +52,12 @@ impl Default for VoicechatConfig {
             login_timeout: 10000,
             broadcast_range: -1.0,
             allow_pings: true,
+            max_packets_per_second: 200,
+            categories: vec![CategoryConfig {
+                id: "radio".to_string(),
+                name: "Radio Team".to_string(),
+                description: Some("Global broadcast".to_string()),
+            }],
         }
     }
 }
@@ -64,6 +79,8 @@ pub static CONFIG: RwLock<VoicechatConfig> = RwLock::new(VoicechatConfig {
     login_timeout: 0,
     broadcast_range: 0.0,
     allow_pings: false,
+    max_packets_per_second: 0,
+    categories: Vec::new(),
 });
 
 impl VoicechatConfig {

@@ -22,6 +22,7 @@ impl EventHandler<PlayerLeaveEvent> for LeaveHandler {
         let uuid = uuid::Uuid::parse_str(&uuid_str).unwrap();
 
         let state_manager = self.state_manager.clone();
+        state_manager.rate_limiter.on_player_logged_out(uuid);
         let all_clients = server.get_all_players();
 
         let old_group = state_manager.get_player_sync(&uuid).and_then(|p| p.group);

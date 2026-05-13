@@ -82,6 +82,10 @@ impl UdpServer {
         uuid_bytes.copy_from_slice(&data[1..17]);
         let player_id = Uuid::from_bytes(uuid_bytes);
 
+        if !self.state_manager.rate_limiter.allow(player_id) {
+            return;
+        }
+
         if let Some(player_state) = self.state_manager.get_player_sync(&player_id) {
             let mut payload_buf = &data[17..];
             let payload_bytes = payload_buf.get_byte_array();
@@ -257,16 +261,18 @@ impl UdpServer {
                             }
                         }
                         0x7 => {
-                            let _ = send_packet(
-                                &self.socket,
-                                src,
-                                VoicePacket::Ping(
-                                    crate::net::voice_packets::PingPacket::from_bytes(
-                                        &mut packet_data,
+                            if config.allow_pings {
+                                let _ = send_packet(
+                                    &self.socket,
+                                    src,
+                                    VoicePacket::Ping(
+                                        crate::net::voice_packets::PingPacket::from_bytes(
+                                            &mut packet_data,
+                                        ),
                                     ),
-                                ),
-                                &player_state.secret,
-                            );
+                                    &player_state.secret,
+                                );
+                            }
                         }
                         0x9 => {
                             info!("Validated connection of player {}", player_id);
