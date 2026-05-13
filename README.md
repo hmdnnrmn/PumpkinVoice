@@ -36,10 +36,10 @@ Before setting up the plugin, make sure you have the following installed on your
 
 ### Download Pre-Release Binaries
 
-We provide pre-built binaries for Windows, Linux, and MacOS under the Releases tab.
+We provide pre-built WASM components under the Releases tab.
 
-1. Download the latest `.dll` (Windows), `.so` (Linux), or `.dylib` (MacOS) from the Releases page.
-2. Place the downloaded library file directly into your PumpkinMC server's `plugins/` directory.
+1. Download the latest `pumpkin_voice.wasm` from the Releases page.
+2. Place the downloaded `.wasm` file directly into your PumpkinMC server's `plugins/` directory.
 
 ### Build from Source (Rust)
 
@@ -51,23 +51,22 @@ If you prefer to compile the plugin yourself or are contributing to development:
    cd PumpkinVoice
    ```
 
-2. **Build the Plugin**
-   Compile the plugin utilizing the optimal release flag for performance:
+2. **Install the WASM Target**
+   Ensure you have the WebAssembly target installed:
    ```bash
-   cargo build --release
+   rustup target add wasm32-wasip2
    ```
 
-3. **Deploy the Executable**
-   Once compiled, move the output executable library into your server's plugin pool:
+3. **Build the Plugin**
+   Compile the plugin to a WASM component:
    ```bash
-   # Windows
-   copy target\release\pumpkin_voice.dll \path\to\pumpkin\plugins\
+   cargo build --release --target wasm32-wasip2
+   ```
 
-   # Linux
-   cp target/release/libpumpkin_voice.so /path/to/pumpkin/plugins/
-
-   # MacOS
-   cp target/release/libpumpkin_voice.dylib /path/to/pumpkin/plugins/
+4. **Deploy the Executable**
+   Once compiled, move the output WASM file into your server's plugin pool:
+   ```bash
+   cp target/wasm32-wasip2/release/pumpkin_voice.wasm /path/to/pumpkin/plugins/
    ```
 
 ### Adjust Server Configurations & Connect
