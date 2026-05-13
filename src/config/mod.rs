@@ -1,11 +1,8 @@
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
-use std::sync::LazyLock;
-use std::{env, fs};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
 use tracing::{debug, warn};
-
-const CONFIG_ROOT_FOLDER: &str = "plugins/pumpkin_voice/";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VoicechatConfig {
@@ -50,30 +47,33 @@ impl Default for VoicechatConfig {
     }
 }
 
-pub static CONFIG: LazyLock<VoicechatConfig> = LazyLock::new(|| {
-    let exec_dir = env::current_dir().unwrap();
-    VoicechatConfig::load(&exec_dir)
+pub static CONFIG: RwLock<VoicechatConfig> = RwLock::new(VoicechatConfig {
+    port: 24454,
+    bind_address: String::new(),
+    max_voice_distance: 48.0,
+    whisper_distance: 24.0,
+    codec: String::new(),
+    mtu_size: 0,
+    keep_alive: 0,
+    enable_groups: false,
+    voice_host: String::new(),
+    allow_recording: false,
+    spectator_interaction: false,
+    spectator_player_possession: false,
+    force_voice_chat: false,
+    login_timeout: 0,
+    broadcast_range: 0.0,
+    allow_pings: false,
 });
 
-impl LoadConfiguration for VoicechatConfig {
-    fn get_path() -> &'static Path {
-        Path::new("config.toml")
-    }
-
-    fn validate(&self) {}
-}
-
-trait LoadConfiguration {
-    fn load(exec_dir: &Path) -> Self
-    where
-        Self: Sized + Default + Serialize + DeserializeOwned,
-    {
-        let config_dir = exec_dir.join(CONFIG_ROOT_FOLDER);
+impl VoicechatConfig {
+    pub fn init(data_folder: &str) {
+        let config_dir = PathBuf::from(data_folder);
         if !config_dir.exists() {
             debug!("creating new config root folder");
             fs::create_dir_all(&config_dir).expect("Failed to create config root folder");
         }
-        let path = config_dir.join(Self::get_path());
+        let path = config_dir.join("config.toml");
 
         let config = if path.exists() {
             let file_content = fs::read_to_string(&path)
@@ -83,7 +83,7 @@ trait LoadConfiguration {
                 panic!(
                     "Couldn't parse config at {:?}. Reason: {}. This is probably caused by a config update; just delete the old config and start Pumpkin again",
                     &path,
-                    err.message()
+                    err
                 )
             })
         } else {
@@ -99,11 +99,7 @@ trait LoadConfiguration {
             content
         };
 
-        config.validate();
-        config
+        let mut global_config = CONFIG.write().unwrap();
+        *global_config = config;
     }
-
-    fn get_path() -> &'static Path;
-
-    fn validate(&self);
 }

@@ -15,61 +15,40 @@ jobs:
   format:
     name: Check formatting
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable && rustup default stable
       - run: cargo fmt --check
 
-  clippy_release:
-    name: Run lints in release mode
+  clippy:
+    name: Run clippy
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - run: rustup update stable && rustup default stable && rustup target add wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --release --all-targets --all-features
+      - run: cargo clippy --target wasm32-wasip2 --all-targets --all-features
 
-  build_release:
-    name: Build project in release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        toolchain:
-          - stable
+  build:
+    name: Build project
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - run: rustup update stable && rustup default stable && rustup target add wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --verbose --release
+      - run: cargo build --release --target wasm32-wasip2
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pumpkin-voice-${{ matrix.os }}.zip
-          path: |
-            target/release/*.dll
-            target/release/*.so
-            target/release/*.dylib
+          name: pumpkin-voice-wasm
+          path: target/wasm32-wasip2/release/*.wasm
           compression-level: 9
-          if-no-files-found: ignore
+          if-no-files-found: error
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: "Release ${{ github.sha }}"
-          tag_name: "build-${{ github.sha }}"
-          draft: true
-          files: |
-            target/release/*.dll
-            target/release/*.so
-            target/release/*.dylib
-
+          name: "Release ${{ github.ref_name }}"
+          tag_name: "${{ github.ref_name }}"
+          draft: false
+          files: target/wasm32-wasip2/release/*.wasm

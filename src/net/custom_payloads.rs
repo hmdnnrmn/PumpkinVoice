@@ -1,4 +1,4 @@
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{BufMut, BytesMut};
 use uuid::Uuid;
 
 use crate::state::Secret;
@@ -21,7 +21,7 @@ pub struct SecretPacket {
 }
 
 impl SecretPacket {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         // Secret mapped as UUID bytes
         buf.put_slice(&self.secret.to_bytes());
@@ -36,7 +36,7 @@ impl SecretPacket {
         buf.put_string(&self.voice_host);
 
         buf.put_u8(if self.allow_recording { 1 } else { 0 });
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -61,7 +61,7 @@ pub struct AddGroupPacket<'a> {
 }
 
 impl<'a> AddGroupPacket<'a> {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         buf.put_uuid(self.id);
         buf.put_string(self.name);
@@ -69,7 +69,7 @@ impl<'a> AddGroupPacket<'a> {
         buf.put_u8(if self.persistent { 1 } else { 0 });
         buf.put_u8(if self.hidden { 1 } else { 0 });
         buf.put_i16(self.group_type);
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -78,10 +78,10 @@ pub struct RemoveGroupPacket {
 }
 
 impl RemoveGroupPacket {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         buf.put_uuid(self.group);
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -91,7 +91,7 @@ pub struct JoinedGroupPacket {
 }
 
 impl JoinedGroupPacket {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         if let Some(uuid) = self.group {
             buf.put_u8(1);
@@ -100,7 +100,7 @@ impl JoinedGroupPacket {
             buf.put_u8(0);
         }
         buf.put_u8(if self.wrong_password { 1 } else { 0 });
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -109,7 +109,7 @@ pub struct PlayerStatePacket<'a> {
 }
 
 impl<'a> PlayerStatePacket<'a> {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         let state = self.player_state;
         buf.put_u8(if state.disabled { 1 } else { 0 });
@@ -123,7 +123,7 @@ impl<'a> PlayerStatePacket<'a> {
         } else {
             buf.put_u8(0);
         }
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -138,7 +138,7 @@ pub struct AddCategoryPacket<'a> {
 }
 
 impl<'a> AddCategoryPacket<'a> {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         // ID (up to 16 chars)
         buf.put_string(&self.category.id);
@@ -162,7 +162,7 @@ impl<'a> AddCategoryPacket<'a> {
         // icon missing
         buf.put_u8(0);
 
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -171,10 +171,10 @@ pub struct RemoveCategoryPacket<'a> {
 }
 
 impl<'a> RemoveCategoryPacket<'a> {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         buf.put_string(self.category_id);
-        buf.freeze()
+        buf.to_vec()
     }
 }
 
@@ -183,7 +183,7 @@ pub struct PlayerStatesPacket<'a> {
 }
 
 impl<'a> PlayerStatesPacket<'a> {
-    pub fn to_bytes(&self) -> Bytes {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = BytesMut::new();
         buf.put_i32(self.player_states.len() as i32);
 
@@ -201,6 +201,6 @@ impl<'a> PlayerStatesPacket<'a> {
             }
         }
 
-        buf.freeze()
+        buf.to_vec()
     }
 }
