@@ -19,7 +19,7 @@ impl StateManager {
     pub fn new() -> Self {
         let config = crate::config::CONFIG.read().unwrap();
         let mut cats = HashMap::new();
-        
+
         for cat in &config.categories {
             cats.insert(
                 cat.id.clone(),

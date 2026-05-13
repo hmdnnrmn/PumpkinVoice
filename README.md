@@ -6,9 +6,10 @@ This plugin implements the backend compatibility needed to host the [Simple Voic
 
 - **Proximity Chat**: Accurately simulates dimensional audio using 3D vector coordinates sent directly to your game client.
 - **Group Channels**: Full support for the GUI group interfaces (creating groups, joining password-locked groups, leaving groups, managing volume).
-- **Audio Categories**: Granular volume controls mapped right onto the client options.
+- **Dynamic Audio Categories**: Create custom audio categories via configuration to differentiate audio streams (e.g. Radio, Global Broadcast) with custom names and icons.
+- **Packet Rate Limiting**: Built-in protection against network flooding/DoS using a high-performance token-bucket rate limiter.
 - **Permissions Support**: Fully respects the native PumpkinMC permission node trees.
-- **Optimized Transport**: Connects entirely over UDP with lightweight `ChaCha20-Poly1305` or `AES-128-GCM` encryption for optimal performance.
+- **Optimized Transport**: Connects entirely over UDP with lightweight `AES-128-GCM` encryption for optimal performance.
 
 ---
 
@@ -84,9 +85,9 @@ PumpkinMC directly delegates commands to the plugin via the Brigadier argument m
 
 | Command | Description | Permission Node |
 |---------|-------------|-----------------|
-| `/voicechat join <group_name> <password>` | Looks up a global group and assigns you to it. Supports passwords. | `voice-chat-pumpkin:groups` |
-| `/voicechat leave` | Disconnects you from your active group bounds. | `voice-chat-pumpkin:groups` |
-| `/voicechat invite <target>` | Sends a chat message to a player with a one-click join link. | `voice-chat-pumpkin:groups` |
+| `/voicechat join <group_name> <password>` | Looks up a global group and assigns you to it. Supports passwords. | `pumpkin_voice:groups` |
+| `/voicechat leave` | Disconnects you from your active group bounds. | `pumpkin_voice:groups` |
+| `/voicechat invite <target>` | Sends a chat message to a player with a one-click join link. | `pumpkin_voice:groups` |
 
 ---
 
@@ -157,6 +158,20 @@ Here is a breakdown of the standard `config.toml` structure dynamically dropped 
 | `keep_alive` | Millisecond trigger interval looping connection verifications. | `1000` |
 | `enable_groups` | Allow or reject GUI `voicechat:create_group` payloads. | `true` |
 | `force_voice_chat` | If `true`, non-modded clients are immediately dropped using a kick constraint. | `false` |
+| `max_packets_per_second` | Maximum UDP packets allowed per player per second before throttling. | `200` |
+| `allow_pings` | Whether to respond to UDP ping packets from clients. | `true` |
+| `broadcast_range` | Maximum range for audio broadcast. `-1` uses max voice distance. | `-1.0` |
+
+### Categories Configuration
+
+You can define custom categories in the `config.toml`:
+
+```toml
+[[categories]]
+id = "radio"
+name = "Radio Team"
+description = "Global broadcast"
+```
 
 ---
 
