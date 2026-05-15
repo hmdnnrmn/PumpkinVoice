@@ -1,6 +1,6 @@
 use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, KeyInit},
     Aes128Gcm, Nonce,
+    aead::{Aead, KeyInit, generic_array::GenericArray},
 };
 use rand::RngCore;
 use uuid::Uuid;

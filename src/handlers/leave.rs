@@ -1,67 +1,63 @@
-use pumpkin::plugin::player::player_leave::PlayerLeaveEvent;
-use pumpkin::plugin::{BoxFuture, EventHandler};
-use pumpkin::server::Server;
-
-use std::sync::Arc;
-use tracing::info;
-
 use crate::net::custom_payloads::{PlayerStatePacket, RemoveGroupPacket};
 use crate::state::StateManager;
+use pumpkin_plugin_api::{
+    events::{EventData, EventHandler, PlayerLeaveEvent},
+    server::Server,
+};
+use std::sync::Arc;
+use tracing::info;
 
 pub struct LeaveHandler {
     pub state_manager: Arc<StateManager>,
 }
 
 impl EventHandler<PlayerLeaveEvent> for LeaveHandler {
-    fn handle_blocking<'a>(
+    fn handle(
         &self,
-        _server: &Arc<Server>,
-        event: &'a mut PlayerLeaveEvent,
-    ) -> BoxFuture<'a, ()> {
-        let player = event.player.clone();
+        server: Server,
+        event: EventData<PlayerLeaveEvent>,
+    ) -> EventData<PlayerLeaveEvent> {
+        let player = &event.player;
+        let uuid_str = player.get_id();
+        let uuid = uuid::Uuid::parse_str(&uuid_str).unwrap();
+
         let state_manager = self.state_manager.clone();
-        let all_clients = _server.get_all_players();
+        state_manager.rate_limiter.on_player_logged_out(uuid);
+        let all_clients = server.get_all_players();
 
-        Box::pin(async move {
-            let uuid = player.gameprofile.id;
+        let old_group = state_manager.get_player_sync(&uuid).and_then(|p| p.group);
 
-            let old_group = state_manager.get_player(&uuid).await.and_then(|p| p.group);
+        // Mark disconnected first before broadcasting
+        state_manager.update_state_sync(&uuid, true, false);
 
-            // Mark disconnected first before broadcasting
-            state_manager.update_state(&uuid, true, false).await;
+        // Broadcast the disconnect state to everyone else
+        if let Some(state) = state_manager.get_player_sync(&uuid) {
+            let bc_packet = PlayerStatePacket {
+                player_state: &state,
+            };
+            let bc_bytes = bc_packet.to_bytes();
 
-            // Broadcast the disconnect state to everyone else
-            if let Some(state) = state_manager.get_player(&uuid).await {
-                let bc_packet = PlayerStatePacket {
-                    player_state: &state,
-                };
-                let bc_bytes = bc_packet.to_bytes();
-
-                for client in &all_clients {
-                    if client.gameprofile.id != uuid {
-                        client
-                            .send_custom_payload("voicechat:state", &bc_bytes)
-                            .await;
-                    }
+            for client in &all_clients {
+                if client.get_id() != uuid_str {
+                    client.send_custom_payload("voicechat:state", &bc_bytes);
                 }
             }
+        }
 
-            // Remove player from state manager when they disconnect
-            state_manager.remove_player(&uuid).await;
+        // Remove player from state manager when they disconnect
+        state_manager.remove_player_sync(&uuid);
 
-            if let Some(old_id) = old_group {
-                if state_manager.remove_if_empty(&old_id).await {
-                    let rm_packet = RemoveGroupPacket { group: old_id };
-                    let rm_bytes = rm_packet.to_bytes();
-                    for client in &all_clients {
-                        client
-                            .send_custom_payload("voicechat:remove_group", &rm_bytes)
-                            .await;
-                    }
-                }
+        if let Some(old_id) = old_group
+            && state_manager.remove_if_empty_sync(&old_id)
+        {
+            let rm_packet = RemoveGroupPacket { group: old_id };
+            let rm_bytes = rm_packet.to_bytes();
+            for client in &all_clients {
+                client.send_custom_payload("voicechat:remove_group", &rm_bytes);
             }
+        }
 
-            info!("Removed player {} from voice chat state", uuid);
-        })
+        info!("Removed player {} from voice chat state", uuid);
+        event
     }
 }

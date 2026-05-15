@@ -1,7 +1,7 @@
 [package]
 name = "pumpkin_voice"
-version = "0.1.0"
-edition = "2021"
+version = "1.0.0"
+edition = "2024"
 authors = ["hmdnnrmn"]
 description = "Simple Voice Chat integration for PumpkinMC"
 license = "GPL-3.0"
@@ -10,30 +10,28 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-# pumpkin = { path = "../pumpkin/pumpkin" } 
-# pumpkin-data = { path = "../pumpkin/pumpkin-data" }
-# pumpkin-util = { path = "../pumpkin/pumpkin-util" }
-# pumpkin-api-macros = { path = "../pumpkin/pumpkin-api-macros" }
-pumpkin = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin" }
-pumpkin-data = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-data" }
-pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-util" }
-pumpkin-api-macros = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-api-macros" }
+pumpkin-plugin-api = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-plugin-api" }
+# We need this for WASM component generation
+wit-bindgen = "0.57"
 
-# A rust asynchronous runtime
-tokio = { version = "1.48", features = ["full"] }
-# Logging
-tracing = "0.1.44"
-# Crypto
-aes-gcm = "0.10"
-rand = "0.8"
+# WASM compatible logging
+tracing = "0.1"
+
+# Crypto - need to ensure these are WASM compatible
+# aes-gcm might need 'aes' and 'ghash' features or similar
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+rand = { version = "0.8", features = ["small_rng"] }
+
 # UUID
-uuid = { version = "1.10", features = ["v4"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
 # Bytes
 bytes = "1.7"
 byteorder = "1.5"
-async-trait = "0.1.89"
-serde = { version = "1.0.228", features = ["derive"] }
-toml = "1.0.3"
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.0"
 
 [profile.release] 
 lto = true
+strip = "debuginfo"
+codegen-units = 1

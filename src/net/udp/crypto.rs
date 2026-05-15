@@ -1,11 +1,11 @@
 use bytes::{BufMut, BytesMut};
-use tokio::net::UdpSocket;
+use std::net::UdpSocket;
 
 use crate::net::voice_packets::VoicePacket;
 use crate::state::Secret;
 use crate::util::buf_ext::BufMutExt;
 
-pub async fn send_packet(
+pub fn send_packet(
     socket: &UdpSocket,
     target: std::net::SocketAddr,
     packet: VoicePacket,
@@ -24,12 +24,26 @@ pub async fn send_packet(
         _ => {} // Other packets
     }
 
-    let encrypted = secret.encrypt(&inner_buf).map_err(|_| "Encryption error")?;
+    let encrypted = match secret.encrypt(&inner_buf) {
+        Ok(enc) => enc,
+        Err(e) => {
+            tracing::error!(
+                "Encryption error for packet type {}: {}",
+                packet.get_type_id(),
+                e
+            );
+            return Err("Encryption error".into());
+        }
+    };
 
     let mut final_buf = BytesMut::new();
     final_buf.put_u8(0xFF);
-    final_buf.put_byte_array(&encrypted);
+    final_buf.put_varint(encrypted.len() as i32);
+    final_buf.put_slice(&encrypted);
 
-    socket.send_to(&final_buf, target).await?;
+    if let Err(e) = socket.send_to(&final_buf, target) {
+        tracing::error!("Failed to send UDP packet to {}: {}", target, e);
+        return Err(e.into());
+    }
     Ok(())
 }

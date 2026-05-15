@@ -1,39 +1,45 @@
 use std::collections::HashMap;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 use uuid::Uuid;
 
 use crate::state::group::Group;
 use crate::state::player::PlayerState;
 use crate::state::secret::Secret;
+use crate::util::rate_limiter::PacketRateLimiter;
 
 pub struct StateManager {
     states: RwLock<HashMap<Uuid, PlayerState>>,
     groups: RwLock<HashMap<Uuid, Group>>,
     categories: RwLock<HashMap<String, crate::net::VolumeCategory>>,
+    pub rate_limiter: PacketRateLimiter,
 }
 
 impl StateManager {
     #[must_use]
     pub fn new() -> Self {
+        let config = crate::config::CONFIG.read().unwrap();
         let mut cats = HashMap::new();
-        // Insert a demo category so the mod populates the UI
-        cats.insert(
-            "radio".to_string(),
-            crate::net::VolumeCategory {
-                id: "radio".to_string(),
-                name: "Radio Team".to_string(),
-                description: Some("Global broadcast".to_string()),
-            },
-        );
+
+        for cat in &config.categories {
+            cats.insert(
+                cat.id.clone(),
+                crate::net::VolumeCategory {
+                    id: cat.id.clone(),
+                    name: cat.name.clone(),
+                    description: cat.description.clone(),
+                },
+            );
+        }
 
         Self {
             states: RwLock::new(HashMap::new()),
             groups: RwLock::new(HashMap::new()),
             categories: RwLock::new(cats),
+            rate_limiter: PacketRateLimiter::new(config.max_packets_per_second),
         }
     }
 
-    pub async fn add_player(&self, uuid: Uuid, name: String) -> Secret {
+    pub fn add_player_sync(&self, uuid: Uuid, name: String) -> Secret {
         let secret = Secret::generate();
         let state = PlayerState {
             uuid,
@@ -44,68 +50,67 @@ impl StateManager {
             secret: secret.clone(),
             socket_addr: None,
         };
-        self.states.write().await.insert(uuid, state);
+        self.states.write().unwrap().insert(uuid, state);
         secret
     }
 
-    pub async fn remove_player(&self, uuid: &Uuid) {
-        self.states.write().await.remove(uuid);
+    pub fn remove_player_sync(&self, uuid: &Uuid) {
+        self.states.write().unwrap().remove(uuid);
     }
 
-    pub async fn get_player(&self, uuid: &Uuid) -> Option<PlayerState> {
-        self.states.read().await.get(uuid).cloned()
+    pub fn get_player_sync(&self, uuid: &Uuid) -> Option<PlayerState> {
+        self.states.read().unwrap().get(uuid).cloned()
     }
 
-    pub async fn update_state(&self, uuid: &Uuid, disconnected: bool, disabled: bool) {
-        if let Some(state) = self.states.write().await.get_mut(uuid) {
+    pub fn update_state_sync(&self, uuid: &Uuid, disconnected: bool, disabled: bool) {
+        if let Some(state) = self.states.write().unwrap().get_mut(uuid) {
             state.disconnected = disconnected;
             state.disabled = disabled;
         }
     }
 
-    pub async fn update_player_addr(&self, uuid: &Uuid, addr: std::net::SocketAddr) {
-        if let Some(state) = self.states.write().await.get_mut(uuid) {
+    pub fn update_player_addr_sync(&self, uuid: &Uuid, addr: std::net::SocketAddr) {
+        if let Some(state) = self.states.write().unwrap().get_mut(uuid) {
             state.socket_addr = Some(addr);
         }
     }
 
-    pub async fn get_all_players(&self) -> Vec<PlayerState> {
-        self.states.read().await.values().cloned().collect()
+    pub fn get_all_players_sync(&self) -> Vec<PlayerState> {
+        self.states.read().unwrap().values().cloned().collect()
     }
 
-    pub async fn get_keep_alive_targets(&self) -> Vec<(std::net::SocketAddr, Secret)> {
+    pub fn get_keep_alive_targets_sync(&self) -> Vec<(std::net::SocketAddr, Secret)> {
         self.states
             .read()
-            .await
+            .unwrap()
             .values()
             .filter_map(|p| p.socket_addr.map(|addr| (addr, p.secret.clone())))
             .collect()
     }
 
-    pub async fn add_group(&self, group: Group) {
-        self.groups.write().await.insert(group.id, group);
+    pub fn add_group_sync(&self, group: Group) {
+        self.groups.write().unwrap().insert(group.id, group);
     }
 
-    pub async fn get_group(&self, id: &Uuid) -> Option<Group> {
-        self.groups.read().await.get(id).cloned()
+    pub fn get_group_sync(&self, id: &Uuid) -> Option<Group> {
+        self.groups.read().unwrap().get(id).cloned()
     }
 
-    pub async fn get_group_by_name(&self, name: &str) -> Option<Group> {
+    pub fn get_group_by_name_sync(&self, name: &str) -> Option<Group> {
         self.groups
             .read()
-            .await
+            .unwrap()
             .values()
             .find(|g| g.name == name)
             .cloned()
     }
 
-    pub async fn get_all_groups(&self) -> Vec<Group> {
-        self.groups.read().await.values().cloned().collect()
+    pub fn get_all_groups_sync(&self) -> Vec<Group> {
+        self.groups.read().unwrap().values().cloned().collect()
     }
 
-    pub async fn get_categories(&self) -> Vec<crate::net::VolumeCategory> {
-        let guard = self.categories.read().await;
-        // Clone each category manually
+    pub fn get_categories_sync(&self) -> Vec<crate::net::VolumeCategory> {
+        let guard = self.categories.read().unwrap();
         guard
             .values()
             .map(|c| crate::net::VolumeCategory {
@@ -116,27 +121,26 @@ impl StateManager {
             .collect()
     }
 
-    pub async fn remove_group(&self, id: &Uuid) {
-        self.groups.write().await.remove(id);
+    pub fn remove_group_sync(&self, id: &Uuid) {
+        self.groups.write().unwrap().remove(id);
     }
 
-    pub async fn set_player_group(&self, player_uuid: &Uuid, group_id: Option<Uuid>) {
-        if let Some(state) = self.states.write().await.get_mut(player_uuid) {
+    pub fn set_player_group_sync(&self, player_uuid: &Uuid, group_id: Option<Uuid>) {
+        if let Some(state) = self.states.write().unwrap().get_mut(player_uuid) {
             state.group = group_id;
         }
     }
 
-    pub async fn remove_if_empty(&self, group_id: &Uuid) -> bool {
-        let players = self.states.read().await;
-        // Check if any player is in this group
+    pub fn remove_if_empty_sync(&self, group_id: &Uuid) -> bool {
+        let players = self.states.read().unwrap();
         let has_players = players.values().any(|p| p.group == Some(*group_id));
         if !has_players {
-            let mut groups = self.groups.write().await;
-            if let Some(g) = groups.get(group_id) {
-                if !g.persistent {
-                    groups.remove(group_id);
-                    return true;
-                }
+            let mut groups = self.groups.write().unwrap();
+            if let Some(g) = groups.get(group_id)
+                && !g.persistent
+            {
+                groups.remove(group_id);
+                return true;
             }
         }
         false
