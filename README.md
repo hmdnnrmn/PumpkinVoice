@@ -157,7 +157,7 @@ Here is a breakdown of the standard `config.toml` structure dynamically dropped 
 | `keep_alive` | Millisecond trigger interval looping connection verifications. | `1000` |
 | `enable_groups` | Allow or reject GUI `voicechat:create_group` payloads. | `true` |
 | `force_voice_chat` | If `true`, non-modded clients are immediately dropped using a kick constraint. | `false` |
-| `max_packets_per_second` | Maximum UDP packets allowed per player per second before throttling. | `200` |
+| `max_packets_per_second` | Maximum UDP packets allowed per player per second before throttling. | `500` |
 | `allow_pings` | Whether to respond to UDP ping packets from clients. | `true` |
 | `broadcast_range` | Maximum range for audio broadcast. `-1` uses max voice distance. | `-1.0` |
 
@@ -181,8 +181,13 @@ description = "Global broadcast"
 **Solution:** 
 1. Determine if the UDP port `24454` is exposed in your cloud firewall (e.g., UFW/AWS/OCI panels). UDP acts alongside TCP constraints but requires dedicated protocol openings.
 2. Review the logs to ensure the `tokio` runtime initialized successfully in the background.
+3. Check for `Rate limiting player ...` warnings in the server console; if seen, increase `max_packets_per_second` in `config.toml`.
 
 ### Group Join Discarding
 **Error:** User selects a correct password but receives "Invalid Password."
 **Solution:** Ensure the client and server code are mirrored correctly. Abandoned GUI parameters occasionally drop payload arrays if the UI bugs out locally. Validate through the standard `/voicechat join` commands as a bypass mechanic. 
+
+### Config Write Errors (WASI)
+**Error:** `Failed to create config folder ... (os error 44)` or `Operation not permitted`.
+**Solution:** This typically indicates a permission or preopen mismatch in the WASI environment. Ensure the plugin has `fs.read` and `fs.write` permissions in its metadata (default in recent versions). The plugin now uses absolute-style relative paths to ensure compatibility with Pumpkin's virtual filesystem.
 

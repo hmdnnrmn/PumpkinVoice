@@ -37,7 +37,16 @@ impl PacketRateLimiter {
             .entry(player)
             .or_insert_with(|| RateLimiter::new(self.threshold, self.time_window));
 
-        limiter.try_acquire()
+        let allowed = limiter.try_acquire();
+        if !allowed {
+            tracing::warn!(
+                "Rate limiting player {}: amount={}, threshold={}",
+                player,
+                limiter.amount,
+                limiter.threshold
+            );
+        }
+        allowed
     }
 
     pub fn on_player_logged_out(&self, player: Uuid) {
@@ -70,12 +79,14 @@ impl RateLimiter {
 
         if leaked_tokens > 0 {
             self.amount = self.amount.saturating_sub(leaked_tokens);
-            // Instead of multiplying and potentially overflowing, just sync to now if we leaked everything
             if self.amount == 0 {
                 self.last_leak = now;
             } else {
                 self.last_leak += Duration::from_nanos(leaked_tokens * self.time_per_token_ns);
             }
+        } else if elapsed_ns == 0 && self.amount >= self.threshold {
+            // Log once in a while or when stuck
+            tracing::debug!("Rate limiter stuck? elapsed_ns=0, amount={}", self.amount);
         }
 
         if self.amount >= self.threshold {

@@ -83,9 +83,6 @@ impl UdpServer {
         let player_id = Uuid::from_bytes(uuid_bytes);
 
         if let Some(player_state) = self.state_manager.get_player_sync(&player_id) {
-            if !self.state_manager.rate_limiter.allow(player_id) {
-                return;
-            }
             let mut payload_buf = &data[17..];
             let payload_bytes = payload_buf.get_byte_array();
 
@@ -103,6 +100,11 @@ impl UdpServer {
                     if decrypted.is_empty() {
                         return;
                     }
+
+                    if !self.state_manager.rate_limiter.allow(player_id) {
+                        return;
+                    }
+
                     let packet_type = decrypted[0];
                     let mut packet_data = &decrypted[1..];
 

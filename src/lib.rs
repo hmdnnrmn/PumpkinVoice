@@ -42,6 +42,8 @@ impl Plugin for VoiceChatPlugin {
                 permissions::NETWORK_UDP_CONNECT.into(),
                 permissions::NETWORK_UDP_OUTGOING_DATAGRAM.into(),
                 permissions::NETWORK_OUTBOUND.into(),
+                permissions::FS_READ.into(),
+                permissions::FS_WRITE.into(),
             ],
         }
     }
@@ -65,6 +67,12 @@ impl Plugin for VoiceChatPlugin {
         let _ = context.register_permission(&pumpkin_plugin_api::permission::Permission {
             node: "pumpkin_voice:command.voicechat".into(),
             description: "Allows the player to use the /voicechat command".into(),
+            default: pumpkin_plugin_api::permission::PermissionDefault::Allow,
+            children: vec![],
+        });
+        let _ = context.register_permission(&pumpkin_plugin_api::permission::Permission {
+            node: "pumpkin_voice:groups".into(),
+            description: "Allows the player to use voice chat groups".into(),
             default: pumpkin_plugin_api::permission::PermissionDefault::Allow,
             children: vec![],
         });
