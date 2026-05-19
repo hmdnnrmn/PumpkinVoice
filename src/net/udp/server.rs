@@ -120,7 +120,8 @@ impl UdpServer {
                             );
                             let all_players = self.state_manager.get_all_players_sync();
 
-                            let sender_pl = match server.get_player_by_uuid(&player_id.to_string())
+                            let sender_pl = match server
+                                .get_player_by_uuid(crate::util::uuid_to_wit_uuid(player_id))
                             {
                                 Some(p) => p,
                                 None => {
@@ -163,8 +164,9 @@ impl UdpServer {
                                     }
                                     if receiver.group == Some(group_id)
                                         && let Some(addr) = receiver.socket_addr
-                                        && let Some(recv_pl) =
-                                            server.get_player_by_uuid(&receiver.uuid.to_string())
+                                        && let Some(recv_pl) = server.get_player_by_uuid(
+                                            crate::util::uuid_to_wit_uuid(receiver.uuid),
+                                        )
                                     {
                                         if recv_pl.has_permission("pumpkin_voice:listen") {
                                             let _ = send_packet(
@@ -203,8 +205,9 @@ impl UdpServer {
                                         continue;
                                     }
                                     if let Some(addr) = receiver.socket_addr
-                                        && let Some(recv_pl) =
-                                            server.get_player_by_uuid(&receiver.uuid.to_string())
+                                        && let Some(recv_pl) = server.get_player_by_uuid(
+                                            crate::util::uuid_to_wit_uuid(receiver.uuid),
+                                        )
                                     {
                                         // Same world check
                                         if sender_pl.get_world().get_id()

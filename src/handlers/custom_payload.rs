@@ -28,8 +28,7 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
         let state_manager = self.state_manager.clone();
         let config = crate::config::CONFIG.read().unwrap();
 
-        let uuid_str = player.get_id();
-        let uuid = uuid::Uuid::parse_str(&uuid_str).unwrap();
+        let uuid = crate::util::wit_uuid_to_uuid(player.get_id());
 
         let bc_state = || {
             if let Some(state) = state_manager.get_player_sync(&uuid) {
@@ -38,7 +37,11 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                 };
                 let bc_bytes = bc_packet.to_bytes();
                 for client in &all_clients {
-                    client.send_custom_payload("voicechat:state", &bc_bytes);
+                    if crate::util::wit_uuid_to_uuid(client.get_id()) != uuid
+                        && let Some(java_player) = client.as_java()
+                    {
+                        java_player.send_custom_payload("voicechat:state", &bc_bytes);
+                    }
                 }
             }
         };
@@ -47,7 +50,7 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
             let mut cursor = std::io::Cursor::new(data);
             let disabled = cursor.get_u8() != 0;
 
-            info!("Player {} updated state: disabled={}", uuid, disabled);
+            info!("Player {:?} updated state: disabled={}", uuid, disabled);
             state_manager.update_state_sync(&uuid, false, disabled);
 
             bc_state();
@@ -61,7 +64,7 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                 None
             };
 
-            info!("{} wants to join group via GUI {}", uuid, group_id);
+            info!("{:?} wants to join group via GUI {}", uuid, group_id);
             if let Some(group) = state_manager.get_group_sync(&group_id) {
                 if group.password == password {
                     let old_group = state_manager.get_player_sync(&uuid).and_then(|p| p.group);
@@ -71,7 +74,12 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                         group: Some(group.id),
                         wrong_password: false,
                     };
-                    player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+                    if let Some(java_player) = player.as_java() {
+                        java_player.send_custom_payload(
+                            "voicechat:joined_group",
+                            &joined_packet.to_bytes(),
+                        );
+                    }
 
                     if let Some(old_id) = old_group
                         && state_manager.remove_if_empty_sync(&old_id)
@@ -79,7 +87,10 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                         let rm_packet = RemoveGroupPacket { group: old_id };
                         let rm_bytes = rm_packet.to_bytes();
                         for client in &all_clients {
-                            client.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                            if let Some(java_player) = client.as_java() {
+                                java_player
+                                    .send_custom_payload("voicechat:remove_group", &rm_bytes);
+                            }
                         }
                     }
 
@@ -89,7 +100,12 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                         group: None,
                         wrong_password: true,
                     };
-                    player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+                    if let Some(java_player) = player.as_java() {
+                        java_player.send_custom_payload(
+                            "voicechat:joined_group",
+                            &joined_packet.to_bytes(),
+                        );
+                    }
                 }
             }
         } else if channel == "voicechat:create_group" {
@@ -109,7 +125,7 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
 
             let group_type = cursor.get_i16();
 
-            info!("{} wants to create a group named {}", uuid, name);
+            info!("{:?} wants to create a group named {}", uuid, name);
             let new_group = Group {
                 id: uuid::Uuid::new_v4(),
                 name,
@@ -134,17 +150,22 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
 
             // Broadcast new group to all players
             for client in &all_clients {
-                client.send_custom_payload("voicechat:add_group", &add_group_bytes);
+                if let Some(java_player) = client.as_java() {
+                    java_player.send_custom_payload("voicechat:add_group", &add_group_bytes);
+                }
             }
 
             let joined_packet = JoinedGroupPacket {
                 group: Some(new_group.id),
                 wrong_password: false,
             };
-            player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+            if let Some(java_player) = player.as_java() {
+                java_player
+                    .send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+            }
             bc_state();
         } else if channel == "voicechat:leave_group" {
-            info!("{} left group", uuid);
+            info!("Player {:?} left group", uuid);
             let old_group = state_manager.get_player_sync(&uuid).and_then(|p| p.group);
 
             state_manager.set_player_group_sync(&uuid, None);
@@ -153,7 +174,10 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                 group: None,
                 wrong_password: false,
             };
-            player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+            if let Some(java_player) = player.as_java() {
+                java_player
+                    .send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+            }
 
             if let Some(old_id) = old_group
                 && state_manager.remove_if_empty_sync(&old_id)
@@ -161,7 +185,9 @@ impl EventHandler<PlayerCustomPayloadEvent> for CustomPayloadHandler {
                 let rm_packet = RemoveGroupPacket { group: old_id };
                 let rm_bytes = rm_packet.to_bytes();
                 for client in &all_clients {
-                    client.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                    if let Some(java_player) = client.as_java() {
+                        java_player.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                    }
                 }
             }
 

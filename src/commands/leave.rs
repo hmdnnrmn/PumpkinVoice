@@ -34,8 +34,7 @@ impl CommandHandler for LeaveCommandExecutor {
             return Ok(1);
         }
 
-        let player_uuid_str = player.get_id();
-        let player_uuid = uuid::Uuid::parse_str(&player_uuid_str).unwrap();
+        let player_uuid = crate::util::wit_uuid_to_uuid(player.get_id());
 
         let old_group = self
             .state_manager
@@ -48,7 +47,9 @@ impl CommandHandler for LeaveCommandExecutor {
             group: None,
             wrong_password: false,
         };
-        player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+        if let Some(java_player) = player.as_java() {
+            java_player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+        }
 
         if let Some(state) = self.state_manager.get_player_sync(&player_uuid) {
             let bc_packet = crate::net::PlayerStatePacket {
@@ -56,7 +57,9 @@ impl CommandHandler for LeaveCommandExecutor {
             };
             let bc_bytes = bc_packet.to_bytes();
             for client in server.get_all_players() {
-                client.send_custom_payload("voicechat:state", &bc_bytes);
+                if let Some(java_player) = client.as_java() {
+                    java_player.send_custom_payload("voicechat:state", &bc_bytes);
+                }
             }
         }
 
@@ -66,7 +69,9 @@ impl CommandHandler for LeaveCommandExecutor {
             let rm_packet = crate::net::RemoveGroupPacket { group: old_id };
             let rm_bytes = rm_packet.to_bytes();
             for client in server.get_all_players() {
-                client.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                if let Some(java_player) = client.as_java() {
+                    java_player.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                }
             }
         }
 

@@ -22,8 +22,8 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
         event: EventData<PlayerJoinEvent>,
     ) -> EventData<PlayerJoinEvent> {
         let player = &event.player;
-        let uuid_str = player.get_id();
-        let uuid = uuid::Uuid::parse_str(&uuid_str).unwrap();
+        let player_api_uuid = player.get_id();
+        let uuid = crate::util::wit_uuid_to_uuid(player_api_uuid);
         let name = player.get_name();
 
         let state_manager = self.state_manager.clone();
@@ -59,18 +59,20 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
         };
 
         let bytes = secret_packet.to_bytes();
-        player.send_custom_payload(SECRET_CHANNEL, &bytes);
-        tracing::info!("Sent secret packet to {}", uuid);
+        if let Some(java_player) = player.as_java() {
+            java_player.send_custom_payload(SECRET_CHANNEL, &bytes);
+        }
+        tracing::info!("Sent secret packet to {:?}", uuid);
 
         if config.force_voice_chat {
             let sm_clone = state_manager.clone();
-            let player_id = uuid_str.clone();
+            let player_id = player_api_uuid;
             let timeout_ticks = (config.login_timeout / 50) as u64; // 50ms per tick
 
             server.schedule_delayed_task(timeout_ticks, move |server| {
                 if let Some(state) = sm_clone.get_player_sync(&uuid)
                     && state.socket_addr.is_none()
-                    && let Some(p) = server.get_player_by_uuid(&player_id)
+                    && let Some(p) = server.get_player_by_uuid(player_id)
                 {
                     let text = TextComponent::text(
                         "You must have the Simple Voice Chat mod installed to play on this server!",
@@ -91,14 +93,18 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
                 hidden: false,
                 group_type: 0,
             };
-            player.send_custom_payload("voicechat:add_group", &add_packet.to_bytes());
+            if let Some(java_player) = player.as_java() {
+                java_player.send_custom_payload("voicechat:add_group", &add_packet.to_bytes());
+            }
         }
 
         // Send all current categories to the new player
         let all_cats = state_manager.get_categories_sync();
         for cat in &all_cats {
             let cat_packet = crate::net::AddCategoryPacket { category: cat };
-            player.send_custom_payload("voicechat:add_category", &cat_packet.to_bytes());
+            if let Some(java_player) = player.as_java() {
+                java_player.send_custom_payload("voicechat:add_category", &cat_packet.to_bytes());
+            }
         }
 
         // Send all current player states to the new player
@@ -106,7 +112,9 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
         let states_packet = PlayerStatesPacket {
             player_states: &all_players,
         };
-        player.send_custom_payload("voicechat:states", &states_packet.to_bytes());
+        if let Some(java_player) = player.as_java() {
+            java_player.send_custom_payload("voicechat:states", &states_packet.to_bytes());
+        }
 
         // Broadcast the new player's state to everyone else
         let new_state = state_manager.get_player_sync(&uuid).unwrap();
@@ -117,8 +125,10 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
 
         let all_clients = server.get_all_players();
         for client in all_clients {
-            if client.get_id() != uuid_str {
-                client.send_custom_payload("voicechat:state", &bc_bytes);
+            if crate::util::wit_uuid_to_uuid(client.get_id()) != uuid
+                && let Some(java_player) = client.as_java()
+            {
+                java_player.send_custom_payload("voicechat:state", &bc_bytes);
             }
         }
 
