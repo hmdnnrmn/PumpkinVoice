@@ -18,8 +18,7 @@ impl EventHandler<PlayerLeaveEvent> for LeaveHandler {
         event: EventData<PlayerLeaveEvent>,
     ) -> EventData<PlayerLeaveEvent> {
         let player = &event.player;
-        let uuid_str = player.get_id();
-        let uuid = uuid::Uuid::parse_str(&uuid_str).unwrap();
+        let uuid = crate::util::wit_uuid_to_uuid(player.get_id());
 
         let state_manager = self.state_manager.clone();
         state_manager.rate_limiter.on_player_logged_out(uuid);
@@ -38,8 +37,10 @@ impl EventHandler<PlayerLeaveEvent> for LeaveHandler {
             let bc_bytes = bc_packet.to_bytes();
 
             for client in &all_clients {
-                if client.get_id() != uuid_str {
-                    client.send_custom_payload("voicechat:state", &bc_bytes);
+                if crate::util::wit_uuid_to_uuid(client.get_id()) != uuid
+                    && let Some(java_player) = client.as_java()
+                {
+                    java_player.send_custom_payload("voicechat:state", &bc_bytes);
                 }
             }
         }
@@ -53,11 +54,13 @@ impl EventHandler<PlayerLeaveEvent> for LeaveHandler {
             let rm_packet = RemoveGroupPacket { group: old_id };
             let rm_bytes = rm_packet.to_bytes();
             for client in &all_clients {
-                client.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                if let Some(java_player) = client.as_java() {
+                    java_player.send_custom_payload("voicechat:remove_group", &rm_bytes);
+                }
             }
         }
 
-        info!("Removed player {} from voice chat state", uuid);
+        info!("Removed player {:?} from voice chat state", uuid);
         event
     }
 }

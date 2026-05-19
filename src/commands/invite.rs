@@ -40,8 +40,7 @@ impl CommandHandler for InviteCommandExecutor {
             return Ok(1);
         }
 
-        let source_uuid_str = source_player.get_id();
-        let source_uuid = uuid::Uuid::parse_str(&source_uuid_str).unwrap();
+        let source_uuid = crate::util::wit_uuid_to_uuid(source_player.get_id());
 
         if let Some(player_state) = self.state_manager.get_player_sync(&source_uuid) {
             if let Some(group_id) = player_state.group {
