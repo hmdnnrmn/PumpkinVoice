@@ -5,6 +5,7 @@ use crate::net::custom_payloads::{
 use crate::state::StateManager;
 use pumpkin_plugin_api::{
     events::{EventData, EventHandler, PlayerJoinEvent},
+    player::{BedrockKickOptions, JavaKickOptions},
     scheduler::SchedulerExt,
     server::Server,
     text::TextComponent,
@@ -74,10 +75,16 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
                     && state.socket_addr.is_none()
                     && let Some(p) = server.get_player_by_uuid(player_id)
                 {
-                    let text = TextComponent::text(
-                        "You must have the Simple Voice Chat mod installed to play on this server!",
-                    );
-                    p.kick(text);
+                    const MESSAGE: &str =
+                        "You must have the Simple Voice Chat mod installed to play on this server!";
+                    if let Some(java_player) = p.as_java() {
+                        java_player.kick(JavaKickOptions::new(TextComponent::text(MESSAGE)));
+                    } else if let Some(bedrock_player) = p.as_bedrock() {
+                        bedrock_player.kick(&BedrockKickOptions {
+                            message: MESSAGE.into(),
+                            ..Default::default()
+                        });
+                    }
                 }
             });
         }
