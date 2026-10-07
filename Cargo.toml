@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pumpkin-plugin-api = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-plugin-api" }
 # We need this for WASM component generation
-wit-bindgen = "0.57"
+wit-bindgen = "0.62"
 
 # WASM compatible logging
 tracing = "0.1"

@@ -77,7 +77,14 @@ impl EventHandler<PlayerJoinEvent> for JoinHandler {
                     let text = TextComponent::text(
                         "You must have the Simple Voice Chat mod installed to play on this server!",
                     );
-                    p.kick(text);
+                    if let Some(java_player) = p.as_java() {
+                        java_player.kick(pumpkin_plugin_api::player::JavaKickOptions::new(text));
+                    } else if let Some(bedrock_player) = p.as_bedrock() {
+                        bedrock_player.kick(&pumpkin_plugin_api::player::BedrockKickOptions::new(
+                            pumpkin_plugin_api::player::BedrockDisconnectReason::Kicked,
+                            "You must have the Simple Voice Chat mod installed to play on this server!",
+                        ));
+                    }
                 }
             });
         }
