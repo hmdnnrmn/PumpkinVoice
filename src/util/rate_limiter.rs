@@ -14,7 +14,7 @@ impl PacketRateLimiter {
     pub fn new(max_packets_per_second: i32) -> Self {
         let time_window = Duration::from_secs(1);
         let threshold = if max_packets_per_second > 0 {
-            (max_packets_per_second as f32 * time_window.as_secs_f32()) as u64
+            max_packets_per_second as u64
         } else {
             0
         };
@@ -38,12 +38,22 @@ impl PacketRateLimiter {
             .or_insert_with(|| RateLimiter::new(self.threshold, self.time_window));
 
         let allowed = limiter.try_acquire();
-        if !allowed {
+        let log_limit = !allowed && limiter.should_log_limit();
+        let amount = limiter.amount;
+        let threshold = limiter.threshold;
+        drop(limiters);
+        if log_limit {
             tracing::warn!(
-                "Rate limiting player {}: amount={}, threshold={}",
-                player,
-                limiter.amount,
-                limiter.threshold
+                "{}",
+                crate::i18n::translate_str_with(
+                    crate::i18n::default_locale(),
+                    "log.rate_limit.player",
+                    &[
+                        player.to_string(),
+                        amount.to_string(),
+                        threshold.to_string(),
+                    ],
+                )
             );
         }
         allowed
@@ -60,15 +70,17 @@ struct RateLimiter {
     time_per_token_ns: u64,
     last_leak: Instant,
     amount: u64,
+    last_warning: Option<Instant>,
 }
 
 impl RateLimiter {
     fn new(threshold: u64, window: Duration) -> Self {
         Self {
             threshold,
-            time_per_token_ns: (window.as_nanos() as u64) / threshold.max(1),
+            time_per_token_ns: ((window.as_nanos() as u64) / threshold.max(1)).max(1),
             last_leak: Instant::now(),
             amount: 0,
+            last_warning: None,
         }
     }
 
@@ -84,9 +96,6 @@ impl RateLimiter {
             } else {
                 self.last_leak += Duration::from_nanos(leaked_tokens * self.time_per_token_ns);
             }
-        } else if elapsed_ns == 0 && self.amount >= self.threshold {
-            // Log once in a while or when stuck
-            tracing::debug!("Rate limiter stuck? elapsed_ns=0, amount={}", self.amount);
         }
 
         if self.amount >= self.threshold {
@@ -95,5 +104,57 @@ impl RateLimiter {
 
         self.amount += 1;
         true
+    }
+
+    fn should_log_limit(&mut self) -> bool {
+        let now = Instant::now();
+        if self
+            .last_warning
+            .is_some_and(|last| now.duration_since(last) < Duration::from_secs(5))
+        {
+            return false;
+        }
+        self.last_warning = Some(now);
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PacketRateLimiter, RateLimiter};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    #[test]
+    fn limits_are_per_player_and_logout_clears_the_budget() {
+        let limiter = PacketRateLimiter::new(1);
+        let player = Uuid::new_v4();
+        assert!(limiter.allow(player));
+        assert!(!limiter.allow(player));
+        assert!(limiter.allow(Uuid::new_v4()));
+        limiter.on_player_logged_out(player);
+        assert!(limiter.allow(player));
+    }
+
+    #[test]
+    fn disabled_and_extreme_limits_do_not_panic() {
+        for limit in [-1, 0, i32::MAX] {
+            let limiter = PacketRateLimiter::new(limit);
+            let player = Uuid::new_v4();
+            for _ in 0..100 {
+                assert!(limiter.allow(player));
+            }
+        }
+    }
+
+    #[test]
+    fn warnings_are_throttled_and_tokens_recover() {
+        let mut limiter = RateLimiter::new(1, Duration::from_secs(1));
+        assert!(limiter.try_acquire());
+        assert!(!limiter.try_acquire());
+        assert!(limiter.should_log_limit());
+        assert!(!limiter.should_log_limit());
+        limiter.last_leak -= Duration::from_secs(1);
+        assert!(limiter.try_acquire());
     }
 }

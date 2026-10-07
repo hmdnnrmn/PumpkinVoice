@@ -1,9 +1,12 @@
 use crate::state::StateManager;
+use crate::{
+    net::custom_payloads::VOICECHAT_COMPATIBILITY_VERSION,
+    net::sync::{broadcast_player_state, broadcast_remove_group, send_joined_group},
+};
 use pumpkin_plugin_api::{
+    Server,
     command::{CommandError, CommandSender, ConsumedArgs},
     commands::CommandHandler,
-    server::Server,
-    text::TextComponent,
 };
 use std::sync::Arc;
 
@@ -21,61 +24,49 @@ impl CommandHandler for LeaveCommandExecutor {
         let player = match sender.as_player() {
             Some(p) => p,
             None => {
-                return Err(CommandError::CommandFailed(TextComponent::text(
-                    "Only players can leave groups.",
+                return Err(CommandError::CommandFailed(crate::i18n::tr(
+                    crate::i18n::default_locale(),
+                    "command.leave.only_player",
                 )));
             }
         };
 
-        if !player.has_permission("pumpkin_voice:groups") {
-            sender.send_message(TextComponent::text(
-                "You do not have permission to use voice groups.",
-            ));
+        let locale = player.get_locale();
+        let player_uuid = crate::util::wit_uuid_to_uuid(player.get_id());
+
+        if !self
+            .state_manager
+            .is_client_compatible_sync(&player_uuid, VOICECHAT_COMPATIBILITY_VERSION)
+        {
+            sender.send_message(crate::i18n::tr(&locale, "command.voicechat_required"));
             return Ok(1);
         }
 
-        let player_uuid = crate::util::wit_uuid_to_uuid(player.get_id());
-
-        let old_group = self
+        if self
             .state_manager
             .get_player_sync(&player_uuid)
-            .and_then(|p| p.group);
-
-        self.state_manager.set_player_group_sync(&player_uuid, None);
-
-        let joined_packet = crate::net::JoinedGroupPacket {
-            group: None,
-            wrong_password: false,
-        };
-        if let Some(java_player) = player.as_java() {
-            java_player.send_custom_payload("voicechat:joined_group", &joined_packet.to_bytes());
+            .is_none_or(|state| state.group.is_none())
+        {
+            sender.send_message(crate::i18n::tr(&locale, "command.leave.not_in_group"));
+            return Ok(1);
         }
+
+        let Some(transition) = self.state_manager.leave_group_sync(&player_uuid) else {
+            return Err(CommandError::CommandFailed(crate::i18n::tr(
+                &locale,
+                "command.player_state_missing",
+            )));
+        };
 
         if let Some(state) = self.state_manager.get_player_sync(&player_uuid) {
-            let bc_packet = crate::net::PlayerStatePacket {
-                player_state: &state,
-            };
-            let bc_bytes = bc_packet.to_bytes();
-            for client in server.get_all_players() {
-                if let Some(java_player) = client.as_java() {
-                    java_player.send_custom_payload("voicechat:state", &bc_bytes);
-                }
-            }
+            broadcast_player_state(&server, &self.state_manager, &state);
+        }
+        send_joined_group(&player, None, false);
+        for removed in transition.removed_groups {
+            broadcast_remove_group(&server, &self.state_manager, removed);
         }
 
-        if let Some(old_id) = old_group
-            && self.state_manager.remove_if_empty_sync(&old_id)
-        {
-            let rm_packet = crate::net::RemoveGroupPacket { group: old_id };
-            let rm_bytes = rm_packet.to_bytes();
-            for client in server.get_all_players() {
-                if let Some(java_player) = client.as_java() {
-                    java_player.send_custom_payload("voicechat:remove_group", &rm_bytes);
-                }
-            }
-        }
-
-        sender.send_message(TextComponent::text("Left group"));
+        sender.send_message(crate::i18n::tr(&locale, "command.leave.left"));
 
         Ok(1)
     }

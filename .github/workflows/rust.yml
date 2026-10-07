@@ -29,6 +29,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --target wasm32-wasip2 --all-targets --all-features
 
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      # The wasm test binary is a component that imports the Pumpkin host
+      # interfaces, so it only links inside a Pumpkin server. Pure-Rust logic
+      # tests run on the host target instead.
+      - run: cargo test --target x86_64-unknown-linux-gnu
+
   build:
     name: Build project
     runs-on: ubuntu-latest

@@ -26,6 +26,9 @@ impl<T: Buf> BufExt for T {
                 return 0;
             }
             let read = self.get_u8();
+            if num_read == 4 && read & 0xf0 != 0 {
+                return 0;
+            }
             let value = (read & 0b0111_1111) as u32;
             result |= value << (7 * num_read);
 
@@ -93,5 +96,17 @@ impl<T: BufMut> BufMutExt for T {
         let bytes = data.as_bytes();
         self.put_varint(bytes.len() as i32);
         self.put_slice(bytes);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BufExt;
+
+    #[test]
+    fn oversized_varints_do_not_shift_past_u32() {
+        assert_eq!((&[0x80; 6][..]).get_varint(), 0);
+        assert_eq!((&[0xff, 0xff, 0xff, 0xff, 0x7f][..]).get_varint(), 0);
+        assert_eq!((&[0xff, 0xff, 0xff, 0xff, 0x0f][..]).get_varint(), -1);
     }
 }
